@@ -22,10 +22,10 @@ def parse_and_start(file):
     agents = data[5:5 + N]
     last = 5 + N
 
-    agent_pos = np.zeros((H, W), dtype=np.int) - 1
+    agent_pos = {}
     agent_no = 0
     for i in range(last, last + 2 * N, 2):
-        agent_pos[int(data[i + 1]), int(data[i])] = agent_no
+        agent_pos[agents[agent_no]] = np.array([int(data[i + 1]), int(data[i])])
         agent_no += 1
     last = last + N * 2 + 1
 
@@ -49,23 +49,27 @@ def parse_and_start(file):
         holes_depth[int(data[last + 3]), int(data[last + 2])] = int(data[last])
         holes_col[int(data[last + 3]), int(data[last + 2])] = agents.index(data[last + 1])
         last += 4
-    print(obstacles)
-    env_q = Queue()
+
+    env_rcv_q = Queue()
+    env_snd_q = Queue()
     env = Process(target=Environment, args=(H, W, holes_depth, holes_col,
-                                            tiles_no, tiles_col, agents, agent_pos, obstacles, env_q))
+                                            tiles_no, tiles_col, agents, agent_pos, obstacles, env_rcv_q, env_snd_q))
     env.start()
-    queues = {"environment": env_q}
+    recv_queues = {"environment": env_rcv_q}
+    send_queues = {"environment": env_snd_q}
     agent_processes = []
     for agent in agents:
-        queues[agent] = Queue()
-        agent_processes.append(Process(target=Agent, args=(agent, queues[agent])))
+        recv_queues[agent] = Queue()
+        send_queues[agent] = Queue()
+        agent_processes.append(Process(target=Agent, args=(agent, recv_queues[agent], send_queues[agent])))
         agent_processes[-1].start()
-    dispatch = Process(target=Dispatch, args=(queues,))
+    dispatch = Process(target=Dispatch, args=(recv_queues, send_queues))
     dispatch.start()
-    env.join()
+
     dispatch.join()
     for agent in agent_processes:
         agent.join()
+    env.join()
 
 
 if __name__ == '__main__':

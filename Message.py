@@ -13,6 +13,7 @@ class Message:
         self.conv_id = conv_id
 
     def __str__(self):
-        print("Message from: %s to: %s" % (self.sender, self.dest))
-        print("Content: %s" % self.content)
-        print("-====END-MESSAGE====-")
+        msg = "Message from: %s to: %s\n" % (self.sender, self.dest)
+        msg += "Content: %s\n" % self.content
+        msg += "-====END-MESSAGE====-\n"
+        return msg

@@ -1,17 +1,18 @@
-from Message import *
 import time
 
+
 class Dispatch:
-    def __init__(self, queues):
-        self.queues = queues
+    def __init__(self, receive_queues, send_queues):
+        self.receive_queues = receive_queues
+        self.send_queues = send_queues
         self.route()
 
     def route(self):
-        for agent, queue in self.queues.items():
+        for agent, queue in self.send_queues.items():
             try:
                 message = queue.get(False)
-                self.queues[message.dest].put(message)
+                self.receive_queues[message.dest].put(message)
             except:
                 pass
-        time.sleep(5)
+        time.sleep(1)
         self.route()
