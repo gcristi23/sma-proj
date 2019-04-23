@@ -2,6 +2,8 @@ import tkinter as tk
 
 import numpy as np
 
+from Message import *
+
 
 class Environment:
     scale = 70
@@ -18,9 +20,12 @@ class Environment:
         self.directions = {"North": np.array([0, -1]), "West": np.array([-1, 0]), "East": np.array([1, 0]),
                            "South": np.array([0, 1])}
         self.agent_obj = {}
+        self.tiles_obj = {}
+        self.holes_obj = {}
         self.received = receive_queue
         self.sent = send_queue
         self.agents = agents
+        self.holding = {x: None for x in self.agents}
         self.agent_pos = agent_pos
         self.obstacles = obstacles
         self.main_window = tk.Tk()
@@ -68,8 +73,9 @@ class Environment:
                     self.canvas.create_rectangle(Environment.scale * j, Environment.scale * i,
                                                  Environment.scale * (j + 1), Environment.scale * (i + 1),
                                                  fill=self.agents[self.holes_col[i, j]])
-                    self.canvas.create_text(Environment.scale * (j + 1) - offset, Environment.scale * i + offset,
-                                            text=str(self.holes_depth[i, j]), fill="white")
+                    self.holes_obj[(i, j)] = self.canvas.create_text(Environment.scale * (j + 1) - offset,
+                                                                     Environment.scale * i + offset,
+                                                                     text=str(self.holes_depth[i, j]), fill="white")
 
     def print_tiles(self):
         offset = Environment.scale / 10
@@ -81,33 +87,64 @@ class Environment:
                                                  Environment.scale * j + offset + agent_size,
                                                  Environment.scale * (i + 1) - (offset + agent_size),
                                                  fill=self.agents[self.tiles_col[i, j]])
-                    self.canvas.create_text(Environment.scale * j + offset * 2,
-                                            Environment.scale * (i + 1) - (offset + agent_size) * 0.7,
-                                            text=str(self.tiles_no[i, j]),
-                                            fill="white")
+                    self.tiles_obj[(i, j)] = self.canvas.create_text(Environment.scale * j + offset * 2,
+                                                                     Environment.scale * (i + 1) - (
+                                                                             offset + agent_size) * 0.7,
+                                                                     text=str(self.tiles_no[i, j]),
+                                                                     fill="white")
 
     def get_messages(self):
         try:
-            data = self.received.get(False)
-            print(data)
-            if "move" in data.content:
-                direction = data.content.split()[1]
-                new_pos = self.agent_pos[data.sender] + self.directions[direction]
+            msg_recv = self.received.get(False)
+            # print(msg_recv)
+            content = None
+            if "move" in msg_recv.content:
+                direction = msg_recv.content.split()[1]
+                new_pos = self.agent_pos[msg_recv.sender] + self.directions[direction]
                 if (0 <= new_pos[0] < self.W) and (0 <= new_pos[1] < self.H) and \
                         self.obstacles[new_pos[1], new_pos[0]] == 0 and self.holes_depth[new_pos[1], new_pos[0]] == 0:
-                    self.agent_pos[data.sender] = new_pos
-                    self.canvas.move(self.agent_obj[data.sender], self.directions[direction][0] * Environment.scale,
+                    self.agent_pos[msg_recv.sender] = new_pos
+                    self.canvas.move(self.agent_obj[msg_recv.sender], self.directions[direction][0] * Environment.scale,
                                      self.directions[direction][1] * Environment.scale
                                      )
-                else:
-                    print("%s can't move %s" % (data.sender, direction))
+                    content = "success"
 
+                else:
+                    content = "failed"
+                    # print("%s can't move %s" % (msg_recv.sender, direction))
+
+            if "pick" in msg_recv.content:
+                pos = self.agent_pos[msg_recv.sender]
+                if self.tiles_no[pos[1], pos[0]] != 0 and self.holding[msg_recv.sender] is None:
+                    self.tiles_no[pos[1], pos[0]] -= 1
+                    self.holding[msg_recv.sender] = self.agents[self.tiles_col[pos[1], pos[0]]]
+                    self.canvas.itemconfig(self.tiles_obj[(pos[1], pos[0])], text=str(self.tiles_no[pos[1], pos[0]]))
+                    content = "success"
+                else:
+                    content = "failed"
+
+            if "use-tile" in msg_recv.content:
+                direction = msg_recv.content.split()[1]
+                pos = self.agent_pos[msg_recv.sender]
+                h_pos = pos + self.directions[direction]
+
+                if self.holes_depth[h_pos[1], h_pos[0]] != 0 and self.holding[msg_recv.sender] is not None:
+                    self.holes_depth[h_pos[1], h_pos[0]] -= 1
+                    self.holding[msg_recv.sender] = None
+                    self.canvas.itemconfig(self.holes_obj[(h_pos[1], h_pos[0])],
+                                           text=str(self.holes_depth[h_pos[1], h_pos[0]]))
+                    content = "success"
+                else:
+                    content = "failed"
+
+            msg = Message('environment', msg_recv.sender, content, Message.INFORM, msg_recv.conv_id)
+            self.sent.put(msg)
         except:
             pass
 
     def loop(self):
         self.get_messages()
-        self.main_window.after(500, self.loop)
+        self.main_window.after(100, self.loop)
 
 
 if __name__ == '__main__':
