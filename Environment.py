@@ -1,5 +1,5 @@
 import tkinter as tk
-
+import time
 import numpy as np
 
 from Message import *
@@ -17,8 +17,8 @@ class Environment:
         self.tiles_no = tiles_no
         self.tiles_col = tiles_col
 
-        self.directions = {"North": np.array([0, -1]), "West": np.array([-1, 0]), "East": np.array([1, 0]),
-                           "South": np.array([0, 1])}
+        self.directions = {"North": np.array([-1, 0]), "West": np.array([0, -1]), "East": np.array([0, 1]),
+                           "South": np.array([1, 0])}
         self.agent_obj = {}
         self.tiles_obj = {}
         self.holes_obj = {}
@@ -57,8 +57,9 @@ class Environment:
         agent_size = Environment.scale / 5
         for agent, pos in self.agent_pos.items():
             multi_agent_offset = offset * self.agents.index(agent)
-            j = pos[0]
-            i = pos[1]
+            i = pos[0]
+            j = pos[1]
+            print(pos)
             self.agent_obj[agent] = self.canvas.create_oval(Environment.scale * j + offset + multi_agent_offset,
                                                             Environment.scale * i + offset,
                                                             Environment.scale * j + offset + agent_size + multi_agent_offset,
@@ -101,11 +102,11 @@ class Environment:
             if "move" in msg_recv.content:
                 direction = msg_recv.content.split()[1]
                 new_pos = self.agent_pos[msg_recv.sender] + self.directions[direction]
-                if (0 <= new_pos[0] < self.W) and (0 <= new_pos[1] < self.H) and \
-                        self.obstacles[new_pos[1], new_pos[0]] == 0 and self.holes_depth[new_pos[1], new_pos[0]] == 0:
+                if (0 <= new_pos[1] < self.W) and (0 <= new_pos[0] < self.H) and \
+                        self.obstacles[new_pos[0], new_pos[1]] == 0 and self.holes_depth[new_pos[0], new_pos[1]] == 0:
                     self.agent_pos[msg_recv.sender] = new_pos
-                    self.canvas.move(self.agent_obj[msg_recv.sender], self.directions[direction][0] * Environment.scale,
-                                     self.directions[direction][1] * Environment.scale
+                    self.canvas.move(self.agent_obj[msg_recv.sender], self.directions[direction][1] * Environment.scale,
+                                     self.directions[direction][0] * Environment.scale
                                      )
                     content = "success"
 
@@ -115,10 +116,10 @@ class Environment:
 
             if "pick" in msg_recv.content:
                 pos = self.agent_pos[msg_recv.sender]
-                if self.tiles_no[pos[1], pos[0]] != 0 and self.holding[msg_recv.sender] is None:
-                    self.tiles_no[pos[1], pos[0]] -= 1
-                    self.holding[msg_recv.sender] = self.agents[self.tiles_col[pos[1], pos[0]]]
-                    self.canvas.itemconfig(self.tiles_obj[(pos[1], pos[0])], text=str(self.tiles_no[pos[1], pos[0]]))
+                if self.tiles_no[pos[0], pos[1]] != 0 and self.holding[msg_recv.sender] is None:
+                    self.tiles_no[pos[0], pos[1]] -= 1
+                    self.holding[msg_recv.sender] = self.agents[self.tiles_col[pos[0], pos[1]]]
+                    self.canvas.itemconfig(self.tiles_obj[(pos[0], pos[1])], text=str(self.tiles_no[pos[0], pos[1]]))
                     content = "success"
                 else:
                     content = "failed"
@@ -128,11 +129,11 @@ class Environment:
                 pos = self.agent_pos[msg_recv.sender]
                 h_pos = pos + self.directions[direction]
 
-                if self.holes_depth[h_pos[1], h_pos[0]] != 0 and self.holding[msg_recv.sender] is not None:
-                    self.holes_depth[h_pos[1], h_pos[0]] -= 1
+                if self.holes_depth[h_pos[0], h_pos[1]] != 0 and self.holding[msg_recv.sender] is not None:
+                    self.holes_depth[h_pos[0], h_pos[1]] -= 1
                     self.holding[msg_recv.sender] = None
-                    self.canvas.itemconfig(self.holes_obj[(h_pos[1], h_pos[0])],
-                                           text=str(self.holes_depth[h_pos[1], h_pos[0]]))
+                    self.canvas.itemconfig(self.holes_obj[(h_pos[0], h_pos[1])],
+                                           text=str(self.holes_depth[h_pos[0], h_pos[1]]))
                     content = "success"
                 else:
                     content = "failed"
@@ -145,6 +146,7 @@ class Environment:
     def loop(self):
         self.get_messages()
         self.main_window.after(100, self.loop)
+
 
 
 if __name__ == '__main__':
