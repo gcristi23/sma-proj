@@ -1,8 +1,7 @@
 import tkinter as tk
-import time
-import numpy as np
 
 from Message import *
+from constants import DIRECTIONS
 
 
 class Environment:
@@ -17,8 +16,6 @@ class Environment:
         self.tiles_no = tiles_no
         self.tiles_col = tiles_col
 
-        self.directions = {"North": np.array([-1, 0]), "West": np.array([0, -1]), "East": np.array([0, 1]),
-                           "South": np.array([1, 0])}
         self.agent_obj = {}
         self.tiles_obj = {}
         self.holes_obj = {}
@@ -101,12 +98,12 @@ class Environment:
             content = None
             if "move" in msg_recv.content:
                 direction = msg_recv.content.split()[1]
-                new_pos = self.agent_pos[msg_recv.sender] + self.directions[direction]
+                new_pos = self.agent_pos[msg_recv.sender] + DIRECTIONS[direction]
                 if (0 <= new_pos[1] < self.W) and (0 <= new_pos[0] < self.H) and \
                         self.obstacles[new_pos[0], new_pos[1]] == 0 and self.holes_depth[new_pos[0], new_pos[1]] == 0:
                     self.agent_pos[msg_recv.sender] = new_pos
-                    self.canvas.move(self.agent_obj[msg_recv.sender], self.directions[direction][1] * Environment.scale,
-                                     self.directions[direction][0] * Environment.scale
+                    self.canvas.move(self.agent_obj[msg_recv.sender], DIRECTIONS[direction][1] * Environment.scale,
+                                     DIRECTIONS[direction][0] * Environment.scale
                                      )
                     content = "success"
 
@@ -127,7 +124,7 @@ class Environment:
             if "use-tile" in msg_recv.content:
                 direction = msg_recv.content.split()[1]
                 pos = self.agent_pos[msg_recv.sender]
-                h_pos = pos + self.directions[direction]
+                h_pos = pos + DIRECTIONS[direction]
 
                 if self.holes_depth[h_pos[0], h_pos[1]] != 0 and self.holding[msg_recv.sender] is not None:
                     self.holes_depth[h_pos[0], h_pos[1]] -= 1

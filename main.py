@@ -58,10 +58,24 @@ def parse_and_start(file):
     recv_queues = {"environment": env_rcv_q}
     send_queues = {"environment": env_snd_q}
     agent_processes = []
-    for agent in agents:
+    for color_index, agent in enumerate(agents):
         recv_queues[agent] = Queue()
         send_queues[agent] = Queue()
-        agent_processes.append(Process(target=Agent, args=(agent, recv_queues[agent], send_queues[agent])))
+        agent_args = (
+            agent,  # color
+            recv_queues[agent],  # receive_queue
+            send_queues[agent],   # send_queue
+            H,  # height of the grid
+            W,  # width of the grid
+            holes_depth,  # the matrix with hole depths (positive integer)
+            holes_col,  # the matrix with hole colors (0 - green, 1 - blue, etc.)
+            tiles_no,  # the matrix with the number of tiles set (positive integer)
+            tiles_col,  # the matrix with tile colors (0 - green, 1 - blue, etc.)
+            obstacles,  # the matrix with 1 as obstacles
+            agent_pos[agent],  # the position of the agent
+            color_index  # the agent's color index in the matrices
+        )
+        agent_processes.append(Process(target=Agent, args=agent_args))
         agent_processes[-1].start()
     dispatch = Process(target=Dispatch, args=(recv_queues, send_queues))
     dispatch.start()

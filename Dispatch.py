@@ -1,4 +1,5 @@
 import time
+from constants import SLEEP_TIME
 
 
 class Dispatch:
@@ -14,5 +15,5 @@ class Dispatch:
                 self.receive_queues[message.dest].put(message)
             except:
                 pass
-        time.sleep(0.1)
+        time.sleep(SLEEP_TIME)
         self.route()
