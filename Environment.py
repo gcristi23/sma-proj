@@ -56,7 +56,6 @@ class Environment:
             multi_agent_offset = offset * self.agents.index(agent)
             i = pos[0]
             j = pos[1]
-            print(pos)
             self.agent_obj[agent] = self.canvas.create_oval(Environment.scale * j + offset + multi_agent_offset,
                                                             Environment.scale * i + offset,
                                                             Environment.scale * j + offset + agent_size + multi_agent_offset,
@@ -108,7 +107,7 @@ class Environment:
                     content = "success"
 
                 else:
-                    content = "failed"
+                    content = "failed " + msg_recv.content
                     # print("%s can't move %s" % (msg_recv.sender, direction))
 
             if "pick" in msg_recv.content:

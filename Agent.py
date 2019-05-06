@@ -110,7 +110,9 @@ class Agent:
         self.position = position
         self.steps = 0
         self.crt_action = 'move_to_tile'
-        self.last_msg = None
+        self.goto_position = None
+        self.goto_path = []
+        self.last_success = True
         self.timeout = RESEND_TIMEOUT
         self.loop()
 
@@ -129,6 +131,7 @@ class Agent:
         if msg_type not in accepted_messages:
             raise ValueError(f'Cannot send message with message type {str(msg_type)}. '
                              f'Accepted values are {accepted_messages}!')
+        self.last_success = False
         if msg_type is not None:
             if msg_type == 'pick':
                 self.pick()
@@ -164,9 +167,11 @@ class Agent:
 
         dest = "environment"
         send_msg = Message(
-            self.color, dest, msg, Message.INFORM, "test-%s" % self.color)
-        self.last_msg = deepcopy(send_msg)
+            self.color, dest, msg, Message.REQUEST, "test-%s" % self.color)
+        print('***' * 3)
+        print(send_msg)
         self.sent.put(send_msg)
+        # TODO: increment steps after receiving message.content == 'success'
         self.steps += 1
 
     def pick(self):
@@ -177,8 +182,8 @@ class Agent:
         """
         dest = "environment"
         send_msg = Message(
-            self.color, dest, "pick", Message.INFORM, "test-%s" % self.color)
-        self.last_msg = deepcopy(send_msg)
+            self.color, dest, "pick", Message.REQUEST, "test-%s" % self.color)
+
         self.sent.put(send_msg)
 
     def use_tile(self, direction=None):
@@ -199,8 +204,8 @@ class Agent:
 
         msg = "use-tile %s" % direction
         send_msg = Message(
-            self.color, dest, msg, Message.INFORM, "test-%s" % self.color)
-        self.last_msg = deepcopy(send_msg)
+            self.color, dest, msg, Message.REQUEST, "test-%s" % self.color)
+
         self.sent.put(send_msg)
 
     def receive_message(self):
@@ -212,19 +217,16 @@ class Agent:
         :return: nothing
         """
         try:
-            while True:
-                data = self.received.get(False)
-                # print("This is: ", self.color)
-                # print(data)
-                if data.content == 'success' or self.timeout == 0:
-                    break
+            data = self.received.get(False)
+            # print("This is: ", self.color)
+            print(data.content)
+            # print('='*5)
+            if data.content == 'success':
+                self.last_success = True
+                self.position = self.goto_path[0]
+                del self.goto_path[0]
 
-                print(f'Will resend last message from {self.color} with content {self.last_msg.content}')
-                self.sent.put(self.last_msg)
-                self.timeout -= 1
-                time.sleep(SLEEP_TIME)
 
-            self.timeout = RESEND_TIMEOUT
         except:
             pass
 
@@ -233,9 +235,7 @@ class Agent:
         Get the closest target ('tile' or 'hole') that is the same color as
         the agent to direct the agent towards it.
 
-        :return: (np.array, list of tuples)
-            A tuple consisting of the closest target (position wise) and a
-            computed path towards it
+        :return: nothing
         """
         positions = []
         if target == 'tile':
@@ -252,6 +252,8 @@ class Agent:
                 start=tuple(self.position),
                 end=tuple(position)
             )
+            # we are already in start position (don't need to go there)
+            path = path[1:]
 
             crt_dist = len(path)
             if crt_dist < min_dist:
@@ -267,10 +269,14 @@ class Agent:
             goto_path = goto_path[:-1]
             goto_position = goto_path[-1]
 
-        return goto_position, goto_path
+        self.goto_position = goto_position
+        self.goto_path = goto_path
+
+        print(f'Will set position to {self.goto_position}')
+        print(f'Will set path to {self.goto_path}')
 
 
-    def move_to_target(self, target, next_action):
+    def move_to_target(self, target):
         """
         Given a target ('tile' or 'hole') move towards it and afterwards set
         the next action.
@@ -283,25 +289,27 @@ class Agent:
             'move_to_hole', 'use_tile' or 'none' (in case of error)
         :return: nothing
         """
-        path_to_closest_target = []
+        print(f'Will move to {target}')
         try:
-            closest_target, path_to_closest_target = self.closest_target(target)
+            if len(self.goto_path) == 0:
+                self.closest_target(target)
         except ValueError as ve:
             self.crt_action = 'none'
             self.loop()
 
-        for next_position in path_to_closest_target:
-            goto_direction = None
-            for next_move, direction in INVERTED_DIRECTIONS.items():
-                if (self.position + np.array(next_move) == next_position).all():
-                    goto_direction = direction
+        next_position = self.goto_path[0]
 
-            self.send_message('move', goto_direction)
-            self.receive_message()
-            time.sleep(SLEEP_TIME)
-            self.position = np.array(next_position)
+        goto_direction = None
+        for next_move, direction in INVERTED_DIRECTIONS.items():
+            if (self.position + np.array(next_move) == next_position).all():
+                goto_direction = direction
 
-        self.crt_action = next_action
+        print(f'Will go to {goto_direction}')
+        self.send_message('move', goto_direction)
+        self.receive_message()
+
+        time.sleep(SLEEP_TIME)
+
         self.loop()
 
     def loop(self):
@@ -310,11 +318,21 @@ class Agent:
 
         :return: nothing.
         """
+        print('-----')
+        print(f'{self.color} is at position {self.position}')
+        print(f'current path is: {self.goto_path}')
+        self.receive_message()
+        if not self.last_success:
+            time.sleep(SLEEP_TIME)
+            self.loop()
+
         if self.crt_action == 'move_to_tile':
             print(f'{self.color} will move to tile')
-            self.move_to_target(
-                target='tile',
-                next_action='pick_up_tile')
+            try:
+                self.move_to_target(
+                    target='tile')
+            except:
+                self.crt_action = 'pick_up_tile'
 
         elif self.crt_action == 'pick_up_tile':
             print(f'{self.color} will pick up tile')
@@ -331,13 +349,13 @@ class Agent:
             # make sure that the next action will be to cover up a hole
             self.crt_action = 'move_to_hole'
 
-            self.loop()
-
         elif self.crt_action == 'move_to_hole':
             print(f'{self.color} will move to hole')
             self.move_to_target(
                 target='hole',
-                next_action='use_tile')
+            )
+            if len(self.goto_path) == 0:
+                self.crt_action = 'use_tile'
 
         elif self.crt_action == 'use_tile':
             use_direction = None
@@ -360,4 +378,5 @@ class Agent:
             # make sure that the next action will be to get another tile
             self.crt_action = 'move_to_tile'
 
-            self.loop()
+        print('--=--')
+        self.loop()
