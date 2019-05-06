@@ -212,19 +212,19 @@ class Agent:
         :return: nothing
         """
         try:
-            data = self.received.get(False)
-            # print("This is: ", self.color)
-            # print(data)
-            while data.content == 'failed':
-                print(f'Will resend last message from {self.color} with content {self.last_msg.content}')
-                # print(self.last_msg)
-                self.sent.put(self.last_msg)
-                self.receive_message()
-                time.sleep(SLEEP_TIME)
-                self.timeout -= 1
-                if self.timeout == 0:
-                    self.timeout = RESEND_TIMEOUT
+            while True:
+                data = self.received.get(False)
+                # print("This is: ", self.color)
+                # print(data)
+                if data.content == 'success' or self.timeout == 0:
                     break
+
+                print(f'Will resend last message from {self.color} with content {self.last_msg.content}')
+                self.sent.put(self.last_msg)
+                self.timeout -= 1
+                time.sleep(SLEEP_TIME)
+
+            self.timeout = RESEND_TIMEOUT
         except:
             pass
 
@@ -252,6 +252,7 @@ class Agent:
                 start=tuple(self.position),
                 end=tuple(position)
             )
+
             crt_dist = len(path)
             if crt_dist < min_dist:
                 min_dist = crt_dist
@@ -264,6 +265,7 @@ class Agent:
         # if we targeted a hole, we must stop before reaching it
         if target == 'hole':
             goto_path = goto_path[:-1]
+            goto_position = goto_path[-1]
 
         return goto_position, goto_path
 
@@ -285,7 +287,6 @@ class Agent:
         try:
             closest_target, path_to_closest_target = self.closest_target(target)
         except ValueError as ve:
-            print('Cannot move to closest target')
             self.crt_action = 'none'
             self.loop()
 
@@ -298,7 +299,7 @@ class Agent:
             self.send_message('move', goto_direction)
             self.receive_message()
             time.sleep(SLEEP_TIME)
-            self.position = next_position
+            self.position = np.array(next_position)
 
         self.crt_action = next_action
         self.loop()
@@ -316,7 +317,7 @@ class Agent:
                 next_action='pick_up_tile')
 
         elif self.crt_action == 'pick_up_tile':
-            print(f'{self.color} will pick up to tile')
+            print(f'{self.color} will pick up tile')
 
             # send a 'pick' message to envirionment
             self.send_message('pick')
@@ -344,6 +345,7 @@ class Agent:
                 possible_hole = self.position + np.array(next_move)
                 if self.holes_depth[possible_hole[0]][possible_hole[1]] > 0:
                     use_direction = direction
+
             print(f'{self.color} will use tile with direction {use_direction}')
 
             # send a 'use_tile' message to environment

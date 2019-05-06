@@ -2,3 +2,4 @@
 .idea/*
 env36/*
 *.swp
+__pycache__/*
