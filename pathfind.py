@@ -1,3 +1,5 @@
+import time
+
 class Node():
     """A node class for A* Pathfinding"""
 
@@ -9,8 +11,12 @@ class Node():
         self.h = 0
         self.f = 0
 
+
     def __eq__(self, other):
-        return self.position == other.position
+        return self.position[0] == other.position[0] and self.position[1] == other.position[1]
+
+    def __repr__(self):
+        return str(self.position)
 
 
 def astar(maze, start, end):
@@ -42,7 +48,6 @@ def astar(maze, start, end):
 
     # Loop until you find the end
     while len(open_list) > 0:
-
         # Get the current node
         current_node = open_list[0]
         current_index = 0
@@ -72,7 +77,8 @@ def astar(maze, start, end):
             node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
 
             # Make sure within range
-            if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (len(maze[len(maze)-1]) -1) or node_position[1] < 0:
+            if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (
+                    len(maze[len(maze) - 1]) - 1) or node_position[1] < 0:
                 continue
 
             # Make sure walkable terrain
@@ -95,7 +101,8 @@ def astar(maze, start, end):
 
             # Create the f, g, and h values
             child.g = current_node.g + 1
-            child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+            child.h = ((child.position[0] - end_node.position[0]) ** 2) + (
+                        (child.position[1] - end_node.position[1]) ** 2)
             child.f = child.g + child.h
 
             # Child is already in the open list

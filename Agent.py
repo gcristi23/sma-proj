@@ -141,13 +141,13 @@ class Agent:
                 self.use_tile(direction=direction)
 
         # If there's no msg_type, just random it
-        chance = np.random.rand()
-        if chance < 0.4:
-            self.pick()
-        elif chance > 0.6:
-            self.move()
-        else:
-            self.use_tile()
+        # chance = np.random.rand()
+        # if chance < 0.4:
+        #     self.pick()
+        # elif chance > 0.6:
+        #     self.move()
+        # else:
+        #     self.use_tile()
 
     def move(self, direction=None):
         """
@@ -168,8 +168,7 @@ class Agent:
         dest = "environment"
         send_msg = Message(
             self.color, dest, msg, Message.REQUEST, "test-%s" % self.color)
-        print('***' * 3)
-        print(send_msg)
+
         self.sent.put(send_msg)
         # TODO: increment steps after receiving message.content == 'success'
         self.steps += 1
@@ -218,9 +217,6 @@ class Agent:
         """
         try:
             data = self.received.get(False)
-            # print("This is: ", self.color)
-            print(data.content)
-            # print('='*5)
             if data.content == 'success':
                 self.last_success = True
                 self.position = self.goto_path[0]
@@ -246,9 +242,10 @@ class Agent:
         min_dist = self.W * self.H
         goto_position = None
         goto_path = None
+        maze = self.obstacles+self.holes_depth if target == "tile" else self.obstacles
         for position in positions:
             path = astar(
-                maze=self.obstacles+self.holes_depth,
+                maze=maze,
                 start=tuple(self.position),
                 end=tuple(position)
             )
@@ -267,7 +264,6 @@ class Agent:
         # if we targeted a hole, we must stop before reaching it
         if target == 'hole':
             goto_path = goto_path[:-1]
-            goto_position = goto_path[-1]
 
         self.goto_position = goto_position
         self.goto_path = goto_path
@@ -293,6 +289,8 @@ class Agent:
         try:
             if len(self.goto_path) == 0:
                 self.closest_target(target)
+                if len(self.goto_path) == 0:
+                    return
         except ValueError as ve:
             self.crt_action = 'none'
             self.loop()
@@ -306,7 +304,6 @@ class Agent:
 
         print(f'Will go to {goto_direction}')
         self.send_message('move', goto_direction)
-        self.receive_message()
 
         time.sleep(SLEEP_TIME)
 
@@ -318,9 +315,7 @@ class Agent:
 
         :return: nothing.
         """
-        print('-----')
-        print(f'{self.color} is at position {self.position}')
-        print(f'current path is: {self.goto_path}')
+
         self.receive_message()
         if not self.last_success:
             time.sleep(SLEEP_TIME)
@@ -328,10 +323,9 @@ class Agent:
 
         if self.crt_action == 'move_to_tile':
             print(f'{self.color} will move to tile')
-            try:
-                self.move_to_target(
+            self.move_to_target(
                     target='tile')
-            except:
+            if len(self.goto_path) == 0:
                 self.crt_action = 'pick_up_tile'
 
         elif self.crt_action == 'pick_up_tile':
@@ -340,7 +334,6 @@ class Agent:
             # send a 'pick' message to envirionment
             self.send_message('pick')
 
-            self.receive_message()
             time.sleep(SLEEP_TIME)
 
             # decrement existing tiles
@@ -361,15 +354,16 @@ class Agent:
             use_direction = None
             for next_move, direction in INVERTED_DIRECTIONS.items():
                 possible_hole = self.position + np.array(next_move)
-                if self.holes_depth[possible_hole[0]][possible_hole[1]] > 0:
-                    use_direction = direction
-
+                try:
+                    if self.holes_depth[possible_hole[0]][possible_hole[1]] > 0:
+                        use_direction = direction
+                except:
+                    pass
             print(f'{self.color} will use tile with direction {use_direction}')
 
             # send a 'use_tile' message to environment
             self.send_message(msg_type='use_tile', direction=use_direction)
 
-            self.receive_message()
             time.sleep(SLEEP_TIME)
 
             # decrement hole depth
@@ -378,5 +372,4 @@ class Agent:
             # make sure that the next action will be to get another tile
             self.crt_action = 'move_to_tile'
 
-        print('--=--')
         self.loop()
