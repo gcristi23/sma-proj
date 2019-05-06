@@ -238,17 +238,21 @@ class Agent:
             positions = np.argwhere(self.tiles_col == self.color_index)
         elif target == 'hole':
             positions = np.argwhere(self.holes_col == self.color_index)
-
+        print(f'position {positions} {self.color}')
         min_dist = self.W * self.H
         goto_position = None
         goto_path = None
-        maze = self.obstacles+self.holes_depth if target == "tile" else self.obstacles
+        maze = self.obstacles+self.holes_depth
         for position in positions:
+            if target == 'hole':
+                maze[tuple(position)] = 0
             path = astar(
                 maze=maze,
                 start=tuple(self.position),
                 end=tuple(position)
             )
+            if target == 'hole':
+                maze[tuple(position)] = 1
             # we are already in start position (don't need to go there)
             path = path[1:]
 
@@ -268,8 +272,7 @@ class Agent:
         self.goto_position = goto_position
         self.goto_path = goto_path
 
-        print(f'Will set position to {self.goto_position}')
-        print(f'Will set path to {self.goto_path}')
+        print(f'Will set position to {self.color}  Will set path to {self.goto_path}')
 
 
     def move_to_target(self, target):
@@ -285,7 +288,7 @@ class Agent:
             'move_to_hole', 'use_tile' or 'none' (in case of error)
         :return: nothing
         """
-        print(f'Will move to {target}')
+        print(f'Will move to {target} {self.color}')
         try:
             if len(self.goto_path) == 0:
                 self.closest_target(target)
