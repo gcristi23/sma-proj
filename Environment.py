@@ -29,6 +29,7 @@ class Environment:
         self.holding = {x: None for x in self.agents}
         self.agent_pos = agent_pos
         self.obstacles = obstacles
+        self.scores = {x: 0 for x in self.agents}
         self.messages = {x: [] for x in self.agents}
         self.main_window = tk.Tk()
         self.canvas = tk.Canvas(self.main_window, width=w * Environment.scale, height=h * Environment.scale)
@@ -77,7 +78,7 @@ class Environment:
                                                  fill=self.agents[self.holes_col[i, j]])
                     self.holes_obj[(i, j)] = self.canvas.create_text(Environment.scale * (j + 1) - offset,
                                                                      Environment.scale * i + offset,
-                                                                     text=str(self.holes_depth[i, j]), fill="gray")
+                                                                     text=str(self.holes_depth[i, j]), fill="white")
 
     def print_tiles(self):
         offset = Environment.scale / 10
@@ -93,7 +94,7 @@ class Environment:
                                                                      Environment.scale * (i + 1) - (
                                                                              offset + agent_size) * 0.7,
                                                                      text=str(self.tiles_no[i, j]),
-                                                                     fill="gray")
+                                                                     fill="white")
 
     def get_messages(self):
         try:
@@ -143,6 +144,9 @@ class Environment:
 
                 if self.holes_depth[h_pos[0], h_pos[1]] != 0 and self.holding[msg_recv.sender] is not None:
                     self.holes_depth[h_pos[0], h_pos[1]] -= 1
+                    if self.holes_col[h_pos[0], h_pos[1]] == self.agents.index(self.holding[msg_recv.sender]):
+                        self.scores[self.holding[msg_recv.sender]] += 10
+                    print(self.holding[msg_recv.sender])
                     self.holding[msg_recv.sender] = None
                     self.canvas.itemconfig(self.holes_obj[(h_pos[0], h_pos[1])],
                                            text=str(self.holes_depth[h_pos[0], h_pos[1]]))
@@ -164,10 +168,16 @@ class Environment:
             time.sleep(10000)
 
     def loop(self):
+        if self.current_time % self.t == 0 or self.current_time == self.T:
+            print("-------------START-STATUS---------------")
+            for agent in self.agents:
+                print(f'[{self.current_time}][ENV][{agent}] score: {self.scores[agent]} | holding: {self.holding[agent]}')
+            print("-------------END-STATUS--------------")
         if self.current_time == self.T:
             self.stop()
         self.get_messages()
         self.do_actions()
+
         self.current_time += self.step
         self.main_window.after(int(SLEEP_TIME * 100), self.loop)
 
