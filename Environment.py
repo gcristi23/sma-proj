@@ -97,12 +97,13 @@ class Environment:
                                                                      fill="white")
 
     def get_messages(self):
-        try:
-            msg_recv = self.received.get(False)
-            print(f'[{round(self.current_time, 2)}][ENV][{msg_recv.sender}] {msg_recv.content}')
-            self.messages[msg_recv.sender].append((msg_recv, self.current_time))
-        except:
-            pass
+        while True:
+            try:
+                msg_recv = self.received.get(False)
+                print(f'[{round(self.current_time, 2)}][ENV][{msg_recv.sender}] {msg_recv.content}')
+                self.messages[msg_recv.sender].append((msg_recv, self.current_time))
+            except:
+                break
 
     def do_actions(self):
         for agent in self.agents:
@@ -146,7 +147,6 @@ class Environment:
                     self.holes_depth[h_pos[0], h_pos[1]] -= 1
                     if self.holes_col[h_pos[0], h_pos[1]] == self.agents.index(self.holding[msg_recv.sender]):
                         self.scores[self.holding[msg_recv.sender]] += 10
-                    print(self.holding[msg_recv.sender])
                     self.holding[msg_recv.sender] = None
                     self.canvas.itemconfig(self.holes_obj[(h_pos[0], h_pos[1])],
                                            text=str(self.holes_depth[h_pos[0], h_pos[1]]))
