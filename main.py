@@ -1,7 +1,5 @@
 import sys
-from multiprocessing import Process, Queue
-
-import numpy as np
+from multiprocessing import Process, Queue, Value
 
 from Agent import *
 from Dispatch import *
@@ -9,6 +7,7 @@ from Environment import *
 
 
 def parse_and_start(file):
+    done = Value('i', 0)
     with open(file, "r") as f:
         lines = f.read().split('\n')
     lines = ' '.join(lines).split()
@@ -53,7 +52,8 @@ def parse_and_start(file):
     env_rcv_q = Queue()
     env_snd_q = Queue()
     env = Process(target=Environment, args=(H, W, holes_depth, holes_col,
-                                            tiles_no, tiles_col, agents, agent_pos, obstacles, env_rcv_q, env_snd_q))
+                                            tiles_no, tiles_col, agents, agent_pos, obstacles, env_rcv_q, env_snd_q, t,
+                                            T, done))
     env.start()
     recv_queues = {"environment": env_rcv_q}
     send_queues = {"environment": env_snd_q}
@@ -64,7 +64,7 @@ def parse_and_start(file):
         agent_args = (
             agent,  # color
             recv_queues[agent],  # receive_queue
-            send_queues[agent],   # send_queue
+            send_queues[agent],  # send_queue
             H,  # height of the grid
             W,  # width of the grid
             holes_depth,  # the matrix with hole depths (positive integer)
@@ -80,10 +80,18 @@ def parse_and_start(file):
     dispatch = Process(target=Dispatch, args=(recv_queues, send_queues))
     dispatch.start()
 
-    dispatch.join()
+    while done.value == 0:
+        time.sleep(1)
+    print("CLOSING EVERYTHING")
+    dispatch.terminate()
     for agent in agent_processes:
-        agent.join()
-    env.join()
+        agent.terminate()
+    env.terminate()
+
+    # dispatch.join()
+    # for agent in agent_processes:
+    #     agent.join()
+    # env.join()
 
 
 if __name__ == '__main__':

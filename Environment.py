@@ -1,21 +1,25 @@
 import tkinter as tk
-
+import time
 from Message import *
-from constants import DIRECTIONS
+from constants import *
 
 
 class Environment:
     scale = 70
 
     def __init__(self, h, w, holes_depth, holes_col,
-                 tiles_no, tiles_col, agents, agent_pos, obstacles, receive_queue, send_queue):
+                 tiles_no, tiles_col, agents, agent_pos, obstacles, receive_queue, send_queue, t, T, done):
         self.H = h
         self.W = w
+        self.done = done
+        self.t = t
+        self.T = T
         self.holes_depth = holes_depth
         self.holes_col = holes_col
         self.tiles_no = tiles_no
         self.tiles_col = tiles_col
-
+        self.current_time = 0
+        self.step = 1
         self.agent_obj = {}
         self.tiles_obj = {}
         self.holes_obj = {}
@@ -25,6 +29,7 @@ class Environment:
         self.holding = {x: None for x in self.agents}
         self.agent_pos = agent_pos
         self.obstacles = obstacles
+        self.messages = {x: [] for x in self.agents}
         self.main_window = tk.Tk()
         self.canvas = tk.Canvas(self.main_window, width=w * Environment.scale, height=h * Environment.scale)
         self.canvas.pack()
@@ -72,7 +77,7 @@ class Environment:
                                                  fill=self.agents[self.holes_col[i, j]])
                     self.holes_obj[(i, j)] = self.canvas.create_text(Environment.scale * (j + 1) - offset,
                                                                      Environment.scale * i + offset,
-                                                                     text=str(self.holes_depth[i, j]), fill="white")
+                                                                     text=str(self.holes_depth[i, j]), fill="gray")
 
     def print_tiles(self):
         offset = Environment.scale / 10
@@ -88,12 +93,24 @@ class Environment:
                                                                      Environment.scale * (i + 1) - (
                                                                              offset + agent_size) * 0.7,
                                                                      text=str(self.tiles_no[i, j]),
-                                                                     fill="white")
+                                                                     fill="gray")
 
     def get_messages(self):
         try:
             msg_recv = self.received.get(False)
-            # print(msg_recv)
+            print(f'[{round(self.current_time, 2)}][ENV][{msg_recv.sender}] {msg_recv.content}')
+            self.messages[msg_recv.sender].append((msg_recv, self.current_time))
+        except:
+            pass
+
+    def do_actions(self):
+        for agent in self.agents:
+            if len(self.messages[agent]) == 0:
+                continue
+            if self.current_time - self.messages[agent][0][1] == self.t:
+                msg_recv = self.messages[agent].pop(0)[0]
+            else:
+                continue
             content = None
             if "move" in msg_recv.content:
                 direction = msg_recv.content.split()[1]
@@ -107,8 +124,7 @@ class Environment:
                     content = "success"
 
                 else:
-                    content = "failed " + msg_recv.content
-                    # print("%s can't move %s" % (msg_recv.sender, direction))
+                    content = "failed"
 
             if "pick" in msg_recv.content:
                 pos = self.agent_pos[msg_recv.sender]
@@ -133,16 +149,27 @@ class Environment:
                     content = "success"
                 else:
                     content = "failed"
-
+            if content == "success":
+                print(f'[{round(self.current_time, 2)}][ENV][{msg_recv.sender}] Operation Done')
             msg = Message('environment', msg_recv.sender, content, Message.INFORM, msg_recv.conv_id)
             self.sent.put(msg)
-        except:
-            pass
+
+    def stop(self):
+        for agent in self.agents:
+            msg = Message('environment', 'agent', 'stop', Message.INFORM, f'stop-{agent}')
+            self.sent.put(msg)
+        print("[ENV] Stopped")
+        self.done.value = 1
+        while True:
+            time.sleep(10000)
 
     def loop(self):
+        if self.current_time == self.T:
+            self.stop()
         self.get_messages()
-        self.main_window.after(100, self.loop)
-
+        self.do_actions()
+        self.current_time += self.step
+        self.main_window.after(int(SLEEP_TIME * 100), self.loop)
 
 
 if __name__ == '__main__':

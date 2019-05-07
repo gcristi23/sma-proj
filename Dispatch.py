@@ -15,5 +15,5 @@ class Dispatch:
                 self.receive_queues[message.dest].put(message)
             except:
                 pass
-        time.sleep(SLEEP_TIME)
+        time.sleep(SLEEP_TIME*0.1)
         self.route()
