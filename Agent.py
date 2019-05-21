@@ -9,7 +9,7 @@ class Agent:
 
     def __init__(self, color, receive_queue, send_queue, H, W, holes_depth,
                  holes_col, tiles_no, tiles_col, obstacles, position,
-                 color_index):
+                 color_index, agents):
         """
         :param color: str
             The color of the agent ('blue', 'green', etc.)
@@ -106,12 +106,20 @@ class Agent:
         self.tiles_col = tiles_col
         self.obstacles = obstacles
         self.position = position
+        self.agents = agents
         self.steps = 0
         self.crt_action = 'move_to_tile'
-        self.goto_position = None
+        self.refuse = set()
         self.goto_path = []
         self.last_success = True
+
+        self.cache_best = {
+            'tile_path': [],
+            'hole_path': []
+        }
         self.timeout = RESEND_TIMEOUT
+        self.msg_sent = 0
+        self.last_negotiation_id = -1
         self.loop()
 
     def send_message(self, msg_type, direction=None):
@@ -169,6 +177,7 @@ class Agent:
 
         self.sent.put(send_msg)
         # TODO: increment steps after receiving message.content == 'success'
+        self.refuse = set()
         self.steps += 1
 
     def pick(self, color):
@@ -213,32 +222,45 @@ class Agent:
 
         :return: nothing
         """
+        msg_queue = []
         try:
-            data = self.received.get(False)
-            if data.content == 'stop':
-                while True:
-                    time.sleep(10000)
-            if data.content == 'success':
-                self.last_success = True
-                self.position = self.goto_path[0]
-                del self.goto_path[0]
-
-
+            while(True):
+                data = self.received.get(False)
+                msg_queue.append(data)
         except:
             pass
 
-    def closest_target(self, target):
+        for data in msg_queue:
+            if data.sender == 'environment':
+                if data.content == 'stop':
+                    while True:
+                        time.sleep(10000)
+                if data.content == 'success':
+                    self.last_success = True
+                    self.position = self.goto_path[0]
+                    del self.goto_path[0]
+            elif data.conv_id == self.last_negotiation_id:
+                if data.msg_type == Message.ACCEPT:
+                    self.goto_path = self.cache_best['tile_path']
+            elif data.msg_type == Message.REQUEST:
+                msg = Message(self.color, data.sender, data.content, Message.ACCEPT, data.conv_id)
+                print(msg)
+                self.sent.put(msg)
+
+
+    def closest_target(self, target, color, start_position=None):
         """
         Get the closest target ('tile' or 'hole') that is the same color as
         the agent to direct the agent towards it.
 
         :return: nothing
         """
+
         positions = []
         if target == 'tile':
-            positions = np.argwhere(self.tiles_col == self.color_index)
+            positions = np.argwhere(self.tiles_col == color)
         elif target == 'hole':
-            positions = np.argwhere(self.holes_col == self.color_index)
+            positions = np.argwhere(self.holes_col == color)
         min_dist = self.W * self.H
         goto_position = None
         goto_path = None
@@ -249,11 +271,16 @@ class Agent:
                     continue
             if target == 'hole':
                 maze[tuple(position)] = 0
+
+            if start_position is None:
+                start_position = self.position
+
             path = astar(
                 maze=maze,
-                start=tuple(self.position),
+                start=tuple(start_position),
                 end=tuple(position)
             )
+
             if target == 'hole':
                 maze[tuple(position)] = 1
             # we are already in start position (don't need to go there)
@@ -272,8 +299,32 @@ class Agent:
         if target == 'hole':
             goto_path = goto_path[:-1]
 
-        self.goto_position = goto_position
-        self.goto_path = goto_path
+        return goto_position, goto_path
+
+    def send_agent_message(self, dest, content, msg_type):
+        conv_id = self.color + '_' + str(self.msg_sent)
+        self.last_negotiation_id = conv_id
+        msg = Message(
+            sender=self.color, dest=dest, content=content, msg_type=msg_type, conv_id=conv_id)
+        # print(msg)
+        self.sent.put(msg)
+
+    def best_path(self):
+        all_colors = set(self.tiles_col[self.tiles_col > -1]) - self.refuse
+        min_dist = 1000
+        min_color = -1
+        for color in all_colors:
+            goto_position_tile, goto_path_tile = self.closest_target('tile', color)
+            goto_position_hole, goto_path_hole = self.closest_target('hole', color, goto_position_tile)
+
+            l = np.sum([len(goto_path_tile), len(goto_path_hole)])
+            if l < min_dist:
+                min_dist = l
+                min_color = color
+                self.cache_best['tile_path'] = goto_path_tile
+                self.cache_best['hole_path'] = goto_path_hole
+
+        self.send_agent_message(dest=self.agents[min_color], content='move_tile-9', msg_type=Message.REQUEST)
 
     def move_to_target(self, target):
         """
@@ -290,7 +341,8 @@ class Agent:
         """
         try:
             if len(self.goto_path) == 0:
-                self.closest_target(target)
+                self.best_path()
+                # self.closest_target(target)
                 if len(self.goto_path) == 0:
                     return
 
@@ -332,7 +384,6 @@ class Agent:
             # send a 'pick' message to envirionment
             self.send_message('pick')
 
-
             # decrement existing tiles
             self.tiles_no[self.position[0]][self.position[1]] -= 1
 
@@ -357,10 +408,8 @@ class Agent:
                 except:
                     pass
 
-
             # send a 'use_tile' message to environment
             self.send_message(msg_type='use_tile', direction=use_direction)
-
 
             # decrement hole depth
             self.holes_depth[possible_hole[0]][possible_hole[1]] -= 1

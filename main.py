@@ -73,7 +73,8 @@ def parse_and_start(file):
             tiles_col,  # the matrix with tile colors (0 - green, 1 - blue, etc.)
             obstacles,  # the matrix with 1 as obstacles
             agent_pos[agent],  # the position of the agent
-            color_index  # the agent's color index in the matrices
+            color_index,  # the agent's color index in the matrices,
+            agents  # all agents
         )
         agent_processes.append(Process(target=Agent, args=agent_args))
         agent_processes[-1].start()
