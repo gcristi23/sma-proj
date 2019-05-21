@@ -12,7 +12,6 @@ def parse_and_start(file):
         lines = f.read().split('\n')
     lines = ' '.join(lines).split()
     data = list(filter(lambda x: len(x) != 0, lines))
-    print(data)
     N = int(data[0])
     t = int(data[1])
     T = int(data[2])

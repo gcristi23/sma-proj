@@ -4,6 +4,7 @@ class Message:
     PROPOSE = 2
     DECLINE = 3
     ACCEPT = 4
+    BROADCAST = 5
 
     def __init__(self, sender, dest, content, msg_type, conv_id):
         self.sender = sender

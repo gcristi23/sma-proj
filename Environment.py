@@ -123,7 +123,7 @@ class Environment:
                     self.canvas.move(self.agent_obj[msg_recv.sender], DIRECTIONS[direction][1] * Environment.scale,
                                      DIRECTIONS[direction][0] * Environment.scale
                                      )
-                    content = "success"
+                    content = "success-move"
 
                 else:
                     content = "failed"
@@ -134,7 +134,7 @@ class Environment:
                     self.tiles_no[pos[0], pos[1]] -= 1
                     self.holding[msg_recv.sender] = self.agents[self.tiles_col[pos[0], pos[1]]]
                     self.canvas.itemconfig(self.tiles_obj[(pos[0], pos[1])], text=str(self.tiles_no[pos[0], pos[1]]))
-                    content = "success"
+                    content = "success-pick"
                 else:
                     content = "failed"
 
@@ -150,10 +150,19 @@ class Environment:
                     self.holding[msg_recv.sender] = None
                     self.canvas.itemconfig(self.holes_obj[(h_pos[0], h_pos[1])],
                                            text=str(self.holes_depth[h_pos[0], h_pos[1]]))
-                    content = "success"
+                    content = "success-use-tile"
                 else:
                     content = "failed"
-            if content == "success":
+
+            if "tp" in msg_recv.content:
+                split_data = msg_recv.content.split("-")
+                n = int(split_data[2])
+                to = split_data[1]
+                self.scores[msg_recv.sender] -= n
+                self.scores[to] += n
+                content = "success-tp"
+            if "success" in content:
+                self.broadcast()
                 print(f'[{round(self.current_time, 2)}][ENV][{msg_recv.sender}] Operation Done')
             msg = Message('environment', msg_recv.sender, content, Message.INFORM, msg_recv.conv_id)
             self.sent.put(msg)
@@ -166,6 +175,21 @@ class Environment:
         self.done.value = 1
         while True:
             time.sleep(10000)
+
+    def broadcast(self):
+        contenth = 'holes-'
+        contenth += np.array2string(self.holes_depth, separator=',')
+        contentt = 'tiles-'
+        contentt += np.array2string(self.tiles_no, separator=',')
+        contenta = 'agents-'
+        contenta += str(self.agent_pos)
+        for agent in self.agents:
+            msg = Message('environment', agent, contenth, Message.BROADCAST, 'broadcast')
+            self.sent.put(msg)
+            msg = Message('environment', agent, contentt, Message.BROADCAST, 'broadcast')
+            self.sent.put(msg)
+            msg = Message('environment', agent, contenta, Message.BROADCAST, 'broadcast')
+            self.sent.put(msg)
 
     def loop(self):
         if self.current_time % self.t == 0 or self.current_time == self.T:
